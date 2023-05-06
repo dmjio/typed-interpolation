@@ -1,2 +1,5 @@
 :set -isrc
 :set -Wall
+:set -XDataKinds
+:set -XTypeApplications
+:set -XOverloadedStrings

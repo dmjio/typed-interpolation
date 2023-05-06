@@ -19,6 +19,7 @@
 -----------------------------------------------------------------------------
 module Interpolation (printf) where
 
+import Numeric (showEFloat, showHex, showOct)
 import Data.Proxy (Proxy(Proxy))
 import GHC.TypeLits ( KnownSymbol
                     , Symbol, UnconsSymbol
@@ -44,7 +45,7 @@ printf = interpC (Proxy @input) mempty
 type Printf symbol input =
      ( KnownSymbol symbol
      , input ~ Tokenize symbol
-     , C input
+     , CPrintf input
      )
 
 type family Tokenize (xs :: Symbol) where
@@ -56,13 +57,20 @@ type family Lex (xs :: Maybe (Char, Symbol)) where
   Lex ( 'Just '( c, xs ))   = Character c ': Lex (UnconsSymbol xs)
 
 type family Pad xs where
-  Pad '[]                              = '[]
-  Pad (Percent ': Character 'd' ': xs) = D ': Pad xs
-  Pad (Percent ': Character 'f' ': xs) = F ': Pad xs
-  Pad (Percent ': Character 's' ': xs) = S ': Pad xs
-  Pad (x ': xs)                        = x ': Pad xs
+  Pad '[]                                               = '[]
+  Pad (Percent ': Character 'd' ': xs)                  = D ': Pad xs
+  Pad (Percent ': Character 'f' ': xs)                  = F ': Pad xs
+  Pad (Percent ': Character 's' ': xs)                  = S ': Pad xs
+  Pad (Percent ': Character 'e' ': xs)                  = E ': Pad xs
+  Pad (Percent ': Character 'E' ': xs)                  = E ': Pad xs
+  Pad (Percent ': Character 'c' ': xs)                  = C ': Pad xs
+  Pad (Percent ': Character 'i' ': xs)                  = I ': Pad xs
+  Pad (Percent ': Character 'x' ': xs)                  = X ': Pad xs
+  Pad (Percent ': Character 'o' ': xs)                  = O ': Pad xs
+  Pad (Percent ': Character 'l' ': Character 'f' ': xs) = LF ': Pad xs
+  Pad (x ': xs)                                         = x ': Pad xs
 
-class C c where
+class CPrintf c where
   type Arg c
   interpC
     :: Proxy c
@@ -72,35 +80,68 @@ class C c where
 data Character (c :: Char)
 data Percent
 data D
+data E
 data F
 data S
+data C
+data I
+data O
+data LF
+data X
 
-instance C '[] where
+instance CPrintf '[] where
   type Arg '[]         = String
   interpC Proxy result = reverse result
 
-instance (KnownChar c, C cs) => C (Character c ': cs) where
+instance (KnownChar c, CPrintf cs) => CPrintf (Character c ': cs) where
   type Arg (Character c ': cs) = Arg cs
   interpC Proxy xs =
     interpC (Proxy @cs) (x:xs)
       where
         x = charVal (Proxy @c)
 
-instance C cs => C (D : cs) where
+instance CPrintf cs => CPrintf (D : cs) where
   type Arg (D : cs) = Int -> Arg cs
   interpC Proxy xs n =
     interpC (Proxy @cs) (reverse (show n) <> xs)
 
-instance C cs => C (F : cs) where
-  type Arg (F : cs) = Double -> Arg cs
+instance CPrintf cs => CPrintf (F : cs) where
+  type Arg (F : cs) = Float -> Arg cs
   interpC Proxy xs n =
     interpC (Proxy @cs) (reverse (show n) <> xs)
 
-instance C cs => C (S : cs) where
+instance CPrintf cs => CPrintf (LF : cs) where
+  type Arg (LF : cs) = Double -> Arg cs
+  interpC Proxy xs n =
+    interpC (Proxy @cs) (reverse (show n) <> xs)
+
+instance CPrintf cs => CPrintf (S : cs) where
   type Arg (S : cs) = String -> Arg cs
   interpC Proxy xs n =
     interpC (Proxy @cs) (reverse n <> xs)
 
-instance C cs => C (Percent : cs) where
+instance CPrintf cs => CPrintf (Percent : cs) where
   type Arg (Percent : cs) = Arg cs
   interpC Proxy xs = interpC (Proxy @cs) ('%' : xs)
+
+instance CPrintf cs => CPrintf (C : cs) where
+  type Arg (C : cs) = Char -> Arg cs
+  interpC Proxy xs c = interpC (Proxy @cs) (c : xs)
+
+instance CPrintf cs => CPrintf (E : cs) where
+  type Arg (E : cs) = Double -> Arg cs
+  interpC Proxy xs d = interpC (Proxy @cs) (val <> xs)
+    where
+      val = reverse (showEFloat Nothing d "")
+
+instance CPrintf cs => CPrintf (X : cs) where
+  type Arg (X : cs) = Int -> Arg cs
+  interpC Proxy xs d = interpC (Proxy @cs) (val <> xs)
+    where
+      val = reverse (showHex d "")
+
+instance CPrintf cs => CPrintf (O : cs) where
+  type Arg (O : cs) = Int -> Arg cs
+  interpC Proxy xs d = interpC (Proxy @cs) (val <> xs)
+    where
+      val = reverse (showOct d "")
