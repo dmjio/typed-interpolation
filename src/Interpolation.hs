@@ -49,32 +49,33 @@ printf = interpC (Proxy @input) id
 -- | Class for printing C-style formatting strings
 type Printf symbol input =
      ( KnownSymbol symbol
-     , input ~ Tokenize symbol
+     , input ~ Parse symbol
      , CPrintf input
      )
 
-type family Tokenize (xs :: Symbol) where
-  Tokenize xs = Pad (Lex (UnconsSymbol xs))
+type family Parse (xs :: Symbol) where
+  Parse xs = PostProcess (Lex (UnconsSymbol xs))
 
 type family Lex (xs :: Maybe (Char, Symbol)) where
   Lex 'Nothing              = '[]
   Lex ( 'Just '( '%', xs )) = Percent ': Lex (UnconsSymbol xs)
   Lex ( 'Just '( c, xs ))   = Character c ': Lex (UnconsSymbol xs)
 
-type family Pad xs where
-  Pad '[]                                               = '[]
-  Pad (Percent ': Character 'd' ': xs)                  = D ': Pad xs
-  Pad (Percent ': Character 'f' ': xs)                  = F ': Pad xs
-  Pad (Percent ': Character 's' ': xs)                  = S ': Pad xs
-  Pad (Percent ': Character 'e' ': xs)                  = E ': Pad xs
-  Pad (Percent ': Character 'E' ': xs)                  = E ': Pad xs
-  Pad (Percent ': Character 'c' ': xs)                  = C ': Pad xs
-  Pad (Percent ': Character 'i' ': xs)                  = I ': Pad xs
-  Pad (Percent ': Character 'x' ': xs)                  = X ': Pad xs
-  Pad (Percent ': Character 'o' ': xs)                  = O ': Pad xs
-  Pad (Percent ': Character 'l' ': Character 'f' ': xs) = LF ': Pad xs
-  Pad (x ': xs)                                         = x ': Pad xs
+type family PostProcess xs where
+  PostProcess '[]                                               = '[]
+  PostProcess (Percent ': Character 'd' ': xs)                  = D  ': PostProcess xs
+  PostProcess (Percent ': Character 'f' ': xs)                  = F  ': PostProcess xs
+  PostProcess (Percent ': Character 's' ': xs)                  = S  ': PostProcess xs
+  PostProcess (Percent ': Character 'e' ': xs)                  = E  ': PostProcess xs
+  PostProcess (Percent ': Character 'E' ': xs)                  = E  ': PostProcess xs
+  PostProcess (Percent ': Character 'c' ': xs)                  = C  ': PostProcess xs
+  PostProcess (Percent ': Character 'i' ': xs)                  = I  ': PostProcess xs
+  PostProcess (Percent ': Character 'x' ': xs)                  = X  ': PostProcess xs
+  PostProcess (Percent ': Character 'o' ': xs)                  = O  ': PostProcess xs
+  PostProcess (Percent ': Character 'l' ': Character 'f' ': xs) = LF ': PostProcess xs
+  PostProcess (x ': xs)                                         = x  ': PostProcess xs
 
+-- | Class used to Codegen C printing functions from lexed / parsed Symbols.
 class CPrintf c where
   type Arg c
   interpC
@@ -82,7 +83,10 @@ class CPrintf c where
     -> ShowS
     -> Arg c
 
+-- | Tokens
 data Character (c :: Char)
+
+-- | Terms
 data Percent
 data D
 data E
