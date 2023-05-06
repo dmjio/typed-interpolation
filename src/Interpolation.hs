@@ -18,14 +18,18 @@
 -- Portability :  non-portable
 -----------------------------------------------------------------------------
 module Interpolation (printf) where
-
-import Numeric (showEFloat, showHex, showOct)
-import Data.Proxy (Proxy(Proxy))
+-----------------------------------------------------------------------------
+import Data.Proxy   ( Proxy(Proxy)
+                    )
 import GHC.TypeLits ( KnownSymbol
                     , Symbol, UnconsSymbol
                     , KnownChar, charVal
                     )
-
+import Numeric      ( showEFloat
+                    , showHex
+                    , showOct
+                    )
+-----------------------------------------------------------------------------
 -- | 'printf'
 -- C-style print formatting
 --
@@ -38,9 +42,10 @@ import GHC.TypeLits ( KnownSymbol
 -- > instance Show Person where
 -- >  show (Person name age) = printf @"My name is %s, I am %d years old" name age
 --
+-----------------------------------------------------------------------------
 printf :: forall symbol input . Printf symbol input => Arg input
-printf = interpC (Proxy @input) mempty
-
+printf = interpC (Proxy @input) id
+-----------------------------------------------------------------------------
 -- | Class for printing C-style formatting strings
 type Printf symbol input =
      ( KnownSymbol symbol
@@ -74,7 +79,7 @@ class CPrintf c where
   type Arg c
   interpC
     :: Proxy c
-    -> String
+    -> ShowS
     -> Arg c
 
 data Character (c :: Char)
@@ -91,57 +96,57 @@ data X
 
 instance CPrintf '[] where
   type Arg '[]         = String
-  interpC Proxy result = reverse result
+  interpC Proxy result = result mempty
 
 instance (KnownChar c, CPrintf cs) => CPrintf (Character c ': cs) where
   type Arg (Character c ': cs) = Arg cs
   interpC Proxy xs =
-    interpC (Proxy @cs) (x:xs)
+    interpC (Proxy @cs) (xs . x)
       where
-        x = charVal (Proxy @c)
+        x = showChar (charVal (Proxy @c))
 
 instance CPrintf cs => CPrintf (D : cs) where
   type Arg (D : cs) = Int -> Arg cs
   interpC Proxy xs n =
-    interpC (Proxy @cs) (reverse (show n) <> xs)
+    interpC (Proxy @cs) (xs . shows n)
 
 instance CPrintf cs => CPrintf (F : cs) where
   type Arg (F : cs) = Float -> Arg cs
   interpC Proxy xs n =
-    interpC (Proxy @cs) (reverse (show n) <> xs)
+    interpC (Proxy @cs) (xs . shows n)
 
 instance CPrintf cs => CPrintf (LF : cs) where
   type Arg (LF : cs) = Double -> Arg cs
   interpC Proxy xs n =
-    interpC (Proxy @cs) (reverse (show n) <> xs)
+    interpC (Proxy @cs) (xs . shows n)
 
 instance CPrintf cs => CPrintf (S : cs) where
   type Arg (S : cs) = String -> Arg cs
   interpC Proxy xs n =
-    interpC (Proxy @cs) (reverse n <> xs)
+    interpC (Proxy @cs) (xs . showString n)
 
 instance CPrintf cs => CPrintf (Percent : cs) where
   type Arg (Percent : cs) = Arg cs
-  interpC Proxy xs = interpC (Proxy @cs) ('%' : xs)
+  interpC Proxy xs = interpC (Proxy @cs) (xs . showChar '%')
 
 instance CPrintf cs => CPrintf (C : cs) where
   type Arg (C : cs) = Char -> Arg cs
-  interpC Proxy xs c = interpC (Proxy @cs) (c : xs)
+  interpC Proxy xs c = interpC (Proxy @cs) (xs . showChar c)
 
 instance CPrintf cs => CPrintf (E : cs) where
   type Arg (E : cs) = Double -> Arg cs
-  interpC Proxy xs d = interpC (Proxy @cs) (val <> xs)
+  interpC Proxy xs d = interpC (Proxy @cs) (xs . x)
     where
-      val = reverse (showEFloat Nothing d "")
+      x = showString (showEFloat Nothing d "")
 
 instance CPrintf cs => CPrintf (X : cs) where
   type Arg (X : cs) = Int -> Arg cs
-  interpC Proxy xs d = interpC (Proxy @cs) (val <> xs)
+  interpC Proxy xs d = interpC (Proxy @cs) (xs . x)
     where
-      val = reverse (showHex d "")
+      x = showString (showHex d "")
 
 instance CPrintf cs => CPrintf (O : cs) where
   type Arg (O : cs) = Int -> Arg cs
-  interpC Proxy xs d = interpC (Proxy @cs) (val <> xs)
+  interpC Proxy xs d = interpC (Proxy @cs) (xs . x)
     where
-      val = reverse (showOct d "")
+      x = showString (showOct d "")
