@@ -6,7 +6,7 @@ homepage:           https://github.com/dmjio/typed-interpolation
 license:            BSD3
 license-file:       LICENSE
 author:             David Johnson
-maintainer:         djohnson.m@gmail.com
+maintainer:         code@dmj.io
 copyright:          (c) David Johnson
 category:           Data
 build-type:         Simple
